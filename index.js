@@ -205,6 +205,61 @@ app.post('/login', async (req,res) => {
     }
 })
 
+// creating endpoint for newcollection data
+
+app.get('/newcollections', async (req,res) => {
+    let products = await  Product.find({});
+    let newcollection = products.slice(1).slice(-8);
+    console.log("NewCollection Fetched");
+    res.send(newcollection);
+})
+
+// creating endpoint for popular in women section
+app.get('/popularinwomen', async (req,res) => {
+    let products = await Product.find({category:"women"});
+    let popular_in_women = products.slice(0,4);
+    console.log("Popular in women fetched");
+    res.send(popular_in_women);
+})
+
+// creating middelware to fetch user
+const fetchUser = async (req, res, next) => {
+    const token = req.header('auth-token');
+
+    if (!token) {
+        return res.status(401).send({ errors: "Please authenticate using validate" });
+    }
+
+    try {
+        const data = jwt.verify(token, 'secret_ecom');
+        req.user = data.user;
+        next();
+    } catch (error) {
+        return res.status(401).send({ errors: "Please authenticate using a valid token" });
+    }
+};
+
+// Creating endpoint for adding products to cartdata
+app.post('/addtocart', fetchUser, async (req, res) => {
+    try {
+        const userData = await Users.findById(req.user.id);
+
+        if (!userData) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        userData.cartData[req.body.itemId] = (userData.cartData[req.body.itemId] || 0) + 1;
+
+        await Users.findByIdAndUpdate(req.user.id, { cartData: userData.cartData });
+
+        res.status(200).json({ message: 'Item added to cart successfully' });
+    } catch (error) {
+        console.error('Error adding item to cart:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
 app.listen(port, ()=> {
     console.log(`Server is listening on port ${port}`)
 })
