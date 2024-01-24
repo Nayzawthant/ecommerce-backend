@@ -144,7 +144,7 @@ const Users = mongoose.model('Users', {
         type: String,
     },
     cartData: {
-        type:Object,
+        type: Object,
     },
     date: {
         type: Date,
@@ -153,34 +153,43 @@ const Users = mongoose.model('Users', {
 })
 
 // Creating Endpoint for registering the user
+app.post('/signup', async (req, res) => {
+    try {
+        const existingUser = await Users.findOne({ email: req.body.email });
 
-app.post('/signup', async(req, res) => {
-    let check = await Users.findOne({email:req.body.email});
-    if (check) {
-        return res.status(400).json({success:false, errors:"existing user found with same email address"})
-    }
-    let cart = {};
-    for (let i = 0; i < 300; i++) {
-        cart[i] = 0;
-    }
-    const user = new Users({
-        name:req.body.username,
-        email:req.body.email,
-        password:req.body.password,
-        cardData:cart,
-    })
-
-    await user.save(); 
-
-    const data = {
-        user: {
-            id:user.id
+        if (existingUser) {
+            return res.status(400).json({ success: false, errors: "An existing user was found with the same email address" });
         }
-    }
 
-    const token = jwt.sign(data, 'secret_ecom')
-    res.json({success:true, token})
-})
+        // const cart = Array.from({ length: 301 }, () => 0);
+        let cart = {};
+        for (let i = 0; i< 300; i++) {
+            cart[i]=0;
+        }
+
+        const newUser = new Users({
+            name: req.body.username,
+            email: req.body.email,
+            password: req.body.password,
+            cartData: cart,
+        });
+
+        await newUser.save();
+
+        const tokenData = {
+            user: {
+                id: newUser.id
+            }
+        };
+
+        const token = jwt.sign(tokenData, 'secret_ecom');
+
+        res.json({ success: true, token });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, errors: "Internal server error" });
+    }
+});
 
 // creating endpoint for user login
 app.post('/login', async (req,res) => {
@@ -241,23 +250,29 @@ const fetchUser = async (req, res, next) => {
 
 // Creating endpoint for adding products to cartdata
 app.post('/addtocart', fetchUser, async (req, res) => {
-    try {
-        const userData = await Users.findById(req.user.id);
-
-        if (!userData) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        userData.cartData[req.body.itemId] = (userData.cartData[req.body.itemId] || 0) + 1;
-
-        await Users.findByIdAndUpdate(req.user.id, { cartData: userData.cartData });
-
-        res.status(200).json({ message: 'Item added to cart successfully' });
-    } catch (error) {
-        console.error('Error adding item to cart:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+    console.log("added", req.body.itemId);
+    let userData = await Users.findOne({_id:req.user.id});
+    userData.cartData[req.body.itemId] +=1;
+    await Users.findOneAndUpdate({_id:req.user.id}, {cartData:userData.cartData});
+    res.send("Added")
 });
+
+// creating endpoint to remove product from cartdata
+app.post('/removefromcart', fetchUser, async (req, res) => {
+    console.log("removed", req.body.itemId);
+    let userData = await Users.findOne({_id:req.user.id});
+    if(userData.cartData[req.body.itemId]>0)
+    userData.cartData[req.body.itemId] -=1;
+    await Users.findOneAndUpdate({_id:req.user.id}, {cartData:userData.cartData});
+    res.send("Removed")
+})
+
+// creating endpoint to get cartdata
+app.post('/getcart', fetchUser, async (req, res) => {
+    console.log("GetCart");
+    let userData = await Users.findOne({_id:req.user.id})
+    res.json(userData.cartData);
+})
 
 
 app.listen(port, ()=> {
